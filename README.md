@@ -187,13 +187,13 @@ Example document:
 # ▶️ Running the Server
 
 ```
-uvicorn app.main:app --reload --port 8003
+uvicorn app.main:app --reload
 ```
 
 Server starts at:
 
 ```
-http://localhost:8003
+http://localhost:8000
 ```
 
 ---
