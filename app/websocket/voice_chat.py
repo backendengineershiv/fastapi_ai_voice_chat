@@ -1,10 +1,12 @@
 import asyncio
+from uuid import uuid4
 from fastapi import APIRouter, WebSocket
 from starlette.websockets import WebSocketDisconnect
 
 from app.services.ai_service import stream_ai_response
 from app.services.text_to_speech import text_to_speech
 from app.services.speech_stream import create_stream_recognizer
+from app.services.conversation_service import save_message
 
 router = APIRouter()
 
@@ -14,16 +16,22 @@ async def voice_chat(websocket: WebSocket):
 
     await websocket.accept()
 
+    # unique session for this conversation
+    session_id = str(uuid4())
+
     recognizer, stream = create_stream_recognizer()
 
     speech_finished = False
 
-    # capture main event loop
+    # capture main FastAPI loop
     loop = asyncio.get_running_loop()
 
     async def handle_ai_response(user_text):
 
         print("User:", user_text)
+
+        # save user message
+        await save_message(session_id, "user", user_text)
 
         full_response = ""
 
@@ -31,14 +39,18 @@ async def voice_chat(websocket: WebSocket):
 
             full_response += token
 
+            # send streaming response to browser
             await websocket.send_text(token)
 
         print("AI:", full_response)
 
+        # save AI message
+        await save_message(session_id, "assistant", full_response)
+
         if full_response.strip():
             text_to_speech(full_response)
 
-    # Azure callback (runs in separate thread)
+    # Azure speech callback
     def recognized(evt):
 
         if evt.result.text:
@@ -62,6 +74,7 @@ async def voice_chat(websocket: WebSocket):
 
             message = await websocket.receive()
 
+            # audio data from browser
             if "bytes" in message:
 
                 audio_chunk = message["bytes"]
@@ -70,6 +83,7 @@ async def voice_chat(websocket: WebSocket):
 
                 speech_finished = False
 
+            # control messages from browser
             elif "text" in message:
 
                 if message["text"] == "END_OF_SPEECH" and not speech_finished:
@@ -77,6 +91,18 @@ async def voice_chat(websocket: WebSocket):
                     speech_finished = True
 
                     print("User stopped speaking")
+
+                    # close stream so Azure finalizes recognition
+                    stream.close()
+
+                    # restart recognizer for next speech segment
+                    recognizer.stop_continuous_recognition()
+
+                    recognizer, stream = create_stream_recognizer()
+
+                    recognizer.recognized.connect(recognized)
+
+                    recognizer.start_continuous_recognition()
 
     except WebSocketDisconnect:
 
