@@ -2,51 +2,39 @@
 <html>
 <body>
 
-<h2>🎤 AI Voice Chat</h2>
+<h2>🎤 Real-Time AI Voice Assistant</h2>
 
-<button onclick="startRecording()">Start Talking</button>
-
-<pre id="output"></pre>
+<button onclick="start()">Start Talking</button>
 
 <script>
 
 const socket = new WebSocket("ws://localhost:8003/voice-chat");
 
-socket.onmessage = (event) => {
-    document.getElementById("output").textContent += event.data;
-};
-
-async function startRecording() {
+async function start() {
 
     const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
 
-    const recorder = new MediaRecorder(stream, {
-        mimeType: "audio/webm"
-    });
+    const audioContext = new AudioContext({ sampleRate: 16000 });
 
-    let chunks = [];
+    const source = audioContext.createMediaStreamSource(stream);
 
-    recorder.ondataavailable = (event) => {
-        chunks.push(event.data);
+    const processor = audioContext.createScriptProcessor(4096, 1, 1);
+
+    source.connect(processor);
+    processor.connect(audioContext.destination);
+
+    processor.onaudioprocess = (event) => {
+
+        const input = event.inputBuffer.getChannelData(0);
+
+        const buffer = new Int16Array(input.length);
+
+        for (let i = 0; i < input.length; i++) {
+            buffer[i] = input[i] * 32767;
+        }
+
+        socket.send(buffer.buffer);
     };
-
-    recorder.onstop = async () => {
-
-        const blob = new Blob(chunks, { type: "audio/webm" });
-
-        const arrayBuffer = await blob.arrayBuffer();
-
-        socket.send(arrayBuffer);
-
-        chunks = [];
-    };
-
-    recorder.start();
-
-    setTimeout(() => {
-        recorder.stop();
-    }, 3000);
-
 }
 
 </script>

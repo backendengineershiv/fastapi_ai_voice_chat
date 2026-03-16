@@ -2,35 +2,45 @@ from fastapi import APIRouter, WebSocket
 from starlette.websockets import WebSocketDisconnect
 from app.services.ai_service import stream_ai_response
 from app.services.text_to_speech import text_to_speech
-from app.services.speech_to_text import speech_to_text_from_audio
+from app.services.speech_stream import create_stream_recognizer
 
 router = APIRouter()
+
 
 @router.websocket("/voice-chat")
 async def voice_chat(websocket: WebSocket):
 
     await websocket.accept()
 
+    recognizer, stream = create_stream_recognizer()
+
     try:
+
+        def recognized(evt):
+            if evt.result.text:
+
+                print("User:", evt.result.text)
+
+                full_response = ""
+
+                for token in stream_ai_response(evt.result.text):
+
+                    full_response += token
+
+                text_to_speech(full_response)
+
+        recognizer.recognized.connect(recognized)
+
+        recognizer.start_continuous_recognition()
 
         while True:
 
-            audio_bytes = await websocket.receive_bytes()
+            audio_chunk = await websocket.receive_bytes()
 
-            # convert speech → text
-            user_message = speech_to_text_from_audio(audio_bytes)
-
-            print("User:", user_message)
-
-            full_response = ""
-
-            for token in stream_ai_response(user_message):
-
-                full_response += token
-
-                await websocket.send_text(token)
-
-            text_to_speech(full_response)
+            stream.write(audio_chunk)
 
     except WebSocketDisconnect:
+
         print("Client disconnected")
+
+        recognizer.stop_continuous_recognition()
