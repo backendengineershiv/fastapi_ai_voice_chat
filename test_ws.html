@@ -1,15 +1,10 @@
 <!DOCTYPE html>
 <html>
-<head>
-<title>AI Voice Chat Test</title>
-</head>
-
 <body>
 
-<h2>AI Voice Chat Test</h2>
+<h2>🎤 AI Voice Chat</h2>
 
-<input id="msg" placeholder="Type message"/>
-<button onclick="sendMessage()">Send</button>
+<button onclick="startRecording()">Start Talking</button>
 
 <pre id="output"></pre>
 
@@ -17,31 +12,41 @@
 
 const socket = new WebSocket("ws://localhost:8003/voice-chat");
 
-socket.onopen = () => {
-    console.log("✅ WebSocket connected");
-};
-
 socket.onmessage = (event) => {
-
-    console.log("📩 Received:", event.data);
-
     document.getElementById("output").textContent += event.data;
 };
 
-socket.onerror = (error) => {
-    console.log("❌ WebSocket error:", error);
-};
+async function startRecording() {
 
-function sendMessage() {
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
 
-    const msg = document.getElementById("msg").value;
+    const recorder = new MediaRecorder(stream, {
+        mimeType: "audio/webm"
+    });
 
-    console.log("📤 Sending:", msg);
+    let chunks = [];
 
-    // reset previous output
-    document.getElementById("output").textContent = "AI: ";
+    recorder.ondataavailable = (event) => {
+        chunks.push(event.data);
+    };
 
-    socket.send(msg);
+    recorder.onstop = async () => {
+
+        const blob = new Blob(chunks, { type: "audio/webm" });
+
+        const arrayBuffer = await blob.arrayBuffer();
+
+        socket.send(arrayBuffer);
+
+        chunks = [];
+    };
+
+    recorder.start();
+
+    setTimeout(() => {
+        recorder.stop();
+    }, 3000);
+
 }
 
 </script>

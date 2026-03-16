@@ -2,9 +2,9 @@ from fastapi import APIRouter, WebSocket
 from starlette.websockets import WebSocketDisconnect
 from app.services.ai_service import stream_ai_response
 from app.services.text_to_speech import text_to_speech
+from app.services.speech_to_text import speech_to_text_from_audio
 
 router = APIRouter()
-
 
 @router.websocket("/voice-chat")
 async def voice_chat(websocket: WebSocket):
@@ -15,23 +15,21 @@ async def voice_chat(websocket: WebSocket):
 
         while True:
 
-            user_message = await websocket.receive_text()
+            audio_bytes = await websocket.receive_bytes()
+
+            # convert speech → text
+            user_message = speech_to_text_from_audio(audio_bytes)
 
             print("User:", user_message)
 
-            # store full response for TTS
             full_response = ""
 
             for token in stream_ai_response(user_message):
 
                 full_response += token
 
-                # stream token to browser
                 await websocket.send_text(token)
 
-            print("AI:", full_response)
-
-            # convert AI response to speech
             text_to_speech(full_response)
 
     except WebSocketDisconnect:
