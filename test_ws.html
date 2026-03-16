@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>AI Voice Chat Test</title>
+</head>
+
+<body>
+
+<h2>AI Voice Chat Test</h2>
+
+<input id="msg" placeholder="Type message"/>
+<button onclick="sendMessage()">Send</button>
+
+<pre id="output"></pre>
+
+<script>
+
+const socket = new WebSocket("ws://localhost:8003/voice-chat");
+
+socket.onopen = () => {
+    console.log("✅ WebSocket connected");
+};
+
+socket.onmessage = (event) => {
+
+    console.log("📩 Received:", event.data);
+
+    document.getElementById("output").textContent += event.data;
+};
+
+socket.onerror = (error) => {
+    console.log("❌ WebSocket error:", error);
+};
+
+function sendMessage() {
+
+    const msg = document.getElementById("msg").value;
+
+    console.log("📤 Sending:", msg);
+
+    // reset previous output
+    document.getElementById("output").textContent = "AI: ";
+
+    socket.send(msg);
+}
+
+</script>
+
+</body>
+</html>
