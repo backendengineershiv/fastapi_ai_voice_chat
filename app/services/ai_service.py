@@ -11,20 +11,16 @@ client = AzureOpenAI(
 )
 
 
-def stream_ai_response(user_message):
+def stream_ai_response(messages):
 
     stream = client.chat.completions.create(
         model=os.getenv("AZURE_OPENAI_DEPLOYMENT"),
-        messages=[
-            {"role": "system", "content": "You are a helpful assistant"},
-            {"role": "user", "content": user_message}
-        ],
+        messages=messages,
         stream=True
     )
 
     for chunk in stream:
 
-        # skip empty chunks
         if not chunk.choices:
             continue
 

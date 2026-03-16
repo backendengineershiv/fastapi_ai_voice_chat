@@ -16,14 +16,13 @@ async def save_message(session_id, role, content):
         upsert=True
     )
 
-
 async def get_messages(session_id):
 
     convo = await conversation_collection.find_one(
         {"session_id": session_id}
     )
 
-    if convo:
+    if convo and "messages" in convo:
         return convo["messages"]
 
     return []

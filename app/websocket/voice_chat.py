@@ -6,7 +6,7 @@ from starlette.websockets import WebSocketDisconnect
 from app.services.ai_service import stream_ai_response
 from app.services.text_to_speech import text_to_speech
 from app.services.speech_stream import create_stream_recognizer
-from app.services.conversation_service import save_message
+from app.services.conversation_service import save_message, get_messages
 
 router = APIRouter()
 
@@ -33,22 +33,32 @@ async def voice_chat(websocket: WebSocket):
         # save user message
         await save_message(session_id, "user", user_text)
 
+        # fetch conversation history
+        history = await get_messages(session_id)
+
+        # system prompt
+        messages = [
+            {
+                "role": "system",
+                "content": "You are a helpful voice assistant."
+            }
+        ]
+
+        messages.extend(history)
+
         full_response = ""
 
-        for token in stream_ai_response(user_text):
+        for token in stream_ai_response(messages):
 
             full_response += token
 
-            # send streaming response to browser
             await websocket.send_text(token)
 
         print("AI:", full_response)
 
-        # save AI message
         await save_message(session_id, "assistant", full_response)
 
-        if full_response.strip():
-            text_to_speech(full_response)
+        text_to_speech(full_response)
 
     # Azure speech callback
     def recognized(evt):
@@ -72,7 +82,11 @@ async def voice_chat(websocket: WebSocket):
 
         while True:
 
-            message = await websocket.receive()
+            try:
+                message = await websocket.receive()
+            except RuntimeError:
+                print("WebSocket closed")
+                break
 
             # audio data from browser
             if "bytes" in message:
