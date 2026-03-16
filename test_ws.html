@@ -10,6 +10,8 @@
 
 const socket = new WebSocket("ws://localhost:8003/voice-chat");
 
+let silenceTimer = null;
+
 async function start() {
 
     const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
@@ -27,6 +29,15 @@ async function start() {
 
         const input = event.inputBuffer.getChannelData(0);
 
+        let sum = 0;
+
+        for (let i = 0; i < input.length; i++) {
+            sum += input[i] * input[i];
+        }
+
+        const volume = Math.sqrt(sum / input.length);
+
+        // send audio
         const buffer = new Int16Array(input.length);
 
         for (let i = 0; i < input.length; i++) {
@@ -34,6 +45,24 @@ async function start() {
         }
 
         socket.send(buffer.buffer);
+
+        // detect silence
+        if (volume < 0.01) {
+
+            if (!silenceTimer) {
+                silenceTimer = setTimeout(() => {
+
+                    console.log("User stopped speaking");
+
+                    socket.send("END_OF_SPEECH");
+
+                }, 1000);
+            }
+
+        } else {
+            clearTimeout(silenceTimer);
+            silenceTimer = null;
+        }
     };
 }
 

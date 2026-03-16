@@ -1,7 +1,11 @@
 from motor.motor_asyncio import AsyncIOMotorClient
+import os
+from dotenv import load_dotenv
 
-MONGO_URL = "mongodb://localhost:27017"
+load_dotenv()
 
-client = AsyncIOMotorClient(MONGO_URL)
+client = AsyncIOMotorClient(os.getenv("MONGO_URI"))
 
-db = client.voice_ai_chat
+db = client[os.getenv("MONGO_DB")]
+
+conversation_collection = db["conversations"]
